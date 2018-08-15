@@ -1,0 +1,123 @@
+#读取数据
+import pandas as pd
+features=['accommodates','bedrooms','bathrooms','beds','price','minimum_nights','maximum_nights','number_of_reviews']
+dataset=pd.read_csv('listings.csv')
+
+dataset=dataset[features]
+print(dataset.shape)
+
+#预测房间数为3的房价
+import numpy as np
+our_acc_value=3
+dataset['distance']=np.abs(dataset['accommodates']-our_acc_value)
+dataset.distance.value_counts().sort_index()
+
+#由上可知同样有3个房间的样本数据有461条
+#首先对数据进行洗牌操作
+dataset=dataset.sample(frac=1,random_state=0)
+dataset=dataset.sort_values('distance')#按照distance由小到大排列distance值
+print(dataset)
+dataset.price.head()
+
+#将price字段转换为数据
+dataset['price']=dataset.price.str.replace("\$|,",'').astype(float)
+mean_price=dataset.price.iloc[:5].mean()#取前5条距离相同的数据，用其price的平均值做预测值
+print(mean_price)#这个价格就是房子的大致价格
+
+#划分训练集和测试集
+dataset.drop('distance',axis=1)#删除distance这一列
+train_df=dataset.copy().iloc[:2792]
+test_df=dataset.copy().iloc[2792:]
+
+#基于单变量预测价格
+def predict_price(new_listing_value,feature_column):
+    temp_df=train_df
+    temp_df['distance']=np.abs(dataset[feature_column]-new_listing_value)
+    
+    temp_df=temp_df.sort_values('distance')
+    knn_5=temp_df.price.iloc[:5]
+    predicted_price=knn_5.mean()
+    
+    return(predicted_price)
+    
+test_df['predicted_price']=test_df.accommodates.apply(predict_price,feature_column='accommodates')#apply函数对test_df.accommodate
+#计算预测误差
+test_df['squared_error']=(test_df['predicted_price']-test_df['price'])**2
+mse=test_df['squared_error'].mean()
+rmse=mse**(1/2)
+print("样本均方根误差为：%.2f" % (rmse))
+
+# 查看不同得单变量预测房价误差变化
+features=['accommodates','bedrooms','bathrooms','number_of_reviews']
+for feature in features:
+    test_df['predicted_price']=test_df[feature].apply(predict_price,feature_column=feature)
+    test_df['squared_error']=(test_df['predicted_price']-test_df['price'])**2
+    mse=test_df['squared_error'].mean()
+    rmse=mse**(1/2)
+    print("通过变量{}预测，样本均方根误差为：{}".format(feature,rmse))
+    
+    
+#综合所有信息进行测试
+import pandas as pd
+from sklearn.preprocessing import StandardScaler
+features=['accommodates','bedrooms','bathrooms','beds','price','minimum_nights','maximum_nights','number_of_reviews']
+
+dataset=pd.read_csv('listings.csv')
+dataset=dataset[features]
+
+from scipy.spatial import distance#引入计算距离的库
+#多变量计算预测值函数
+def predicted_price_mul(new_listing_value,feature_columns):
+    temp_df=norm_train_df
+    temp_df['distance']=distance.cdist(temp_df[feature_columns],[new_listing_value[feature_columns]])
+    temp_df=temp_df.sort_values('distance')
+    knn_5=temp_df.price.iloc[:5]
+    predicted_price=knn_5.mean()
+    return(predicted_price)
+
+
+cols=['accommodates','bathrooms']
+
+norm_test_df['predicted_price'] = norm_test_df[cols].apply(predicted_price_mul,feature_columns=cols,axis=1)    
+
+norm_test_df['squared_error']=(norm_test_df['predicted_price']-norm_test_df['price'])**2
+mse=norm_test_df['squared_error'].mean()
+rmse=mse**(1/2)
+print("在变量{}和{}的影响下，样本均方根误差为：{}".format('accommodate','bathrooms',rmse))
+
+
+#使用sklearn完成KNN
+from sklearn.neighbors import KNeighborsRegressor
+cols=['accommodates','bathrooms']
+knn=KNeighborsRegressor(n_neighbors=5)
+knn.fit(norm_train_df[cols],norm_train_df['price'])
+two_feature_predictions=knn.predict(norm_test_df[cols])
+from sklearn.metrics import mean_squared_error
+
+two_features_mse = mean_squared_error(norm_test_df['price'], two_feature_predictions)
+two_features_rmse = two_features_mse ** (1/2)
+print(two_features_rmse)
+
+#加入更多特征
+knn = KNeighborsRegressor()
+
+cols = ['accommodates','bedrooms','bathrooms','beds','minimum_nights','maximum_nights','number_of_reviews']
+
+knn.fit(norm_train_df[cols], norm_train_df['price'])
+four_features_predictions = knn.predict(norm_test_df[cols])
+four_features_mse = mean_squared_error(norm_test_df['price'], four_features_predictions)
+four_features_rmse = four_features_mse ** (1/2)
+four_features_rmse
+dataset['price']=dataset['price'].str.replace('\$|,','').astype(float)
+
+#去除含有缺失值的样本
+dataset=dataset.dropna()
+
+#标准化
+dataset[features]=StandardScaler().fit_transform(dataset[features])
+normalized_dataset=dataset
+
+#划分训练集和测试集
+norm_train_df=normalized_dataset.copy().iloc[0:2792]
+norm_test_df=normalized_dataset.copy().iloc[2792:]
+norm_test_df.shape
